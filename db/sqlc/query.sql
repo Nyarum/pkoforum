@@ -34,4 +34,4 @@ FROM comments c
 LEFT JOIN comment_translations ct ON c.id = ct.comment_id
 LEFT JOIN comment_images ci ON c.id = ci.comment_id
 WHERE c.thread_id = ?
-ORDER BY c.created_at DESC; 
+ORDER BY c.created_at ASC; 

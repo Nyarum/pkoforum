@@ -1,14 +1,63 @@
 <script>
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
+    import { language, t } from '$lib/stores/language';
     
     let threads = $state([]);
     let selectedThread = $state(null);
     let selectedThreadId = $state(null);
     let showNewThreadModal = $state(false);
+    let pollInterval = $state(null);
 
     onMount(async () => {
-        const response = await fetch('/api/threads');
+        const response = await fetch(`/api/threads?lang=${$language}`);
         threads = await response.json();
+    });
+
+    // Function to poll for updates
+    async function pollForUpdates() {
+        if (!selectedThreadId) return;
+        
+        try {
+            const response = await fetch(`/api/threads/${selectedThreadId}?lang=${$language}`);
+            if (response.ok) {
+                const updatedThread = await response.json();
+                // Ensure we keep the same order by sorting by creation time
+                updatedThread.comments = updatedThread.comments.sort((a, b) => 
+                    new Date(b.created_at) - new Date(a.created_at)
+                );
+                selectedThread = updatedThread;
+            }
+        } catch (error) {
+            console.error('Error polling for updates:', error);
+        }
+    }
+
+    // Start polling when a thread is loaded
+    async function loadThread(id) {
+        // Clear existing interval if any
+        if (pollInterval) {
+            clearInterval(pollInterval);
+        }
+
+        const response = await fetch(`/api/threads/${id}?lang=${$language}`);
+        selectedThread = await response.json();
+        // Ensure comments are sorted by creation time in descending order
+        if (selectedThread.comments) {
+            selectedThread.comments = selectedThread.comments.sort((a, b) => 
+                new Date(b.created_at) - new Date(a.created_at)
+            );
+        }
+        selectedThreadId = id;
+
+        // Start polling for updates every 2 seconds
+        pollInterval = setInterval(pollForUpdates, 2000);
+    }
+
+    // Clean up interval when component is destroyed
+    onDestroy(() => {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+        }
     });
 
     async function createThread(event) {
@@ -32,12 +81,6 @@
         }
     }
 
-    async function loadThread(id) {
-        const response = await fetch(`/api/threads/${id}`);
-        selectedThread = await response.json();
-        selectedThreadId = id;
-    }
-
     async function addComment(event, threadId) {
         event.preventDefault();
         const formData = new FormData(event.target);
@@ -56,8 +99,23 @@
         });
 
         if (response.ok) {
-            const updatedThread = await response.json();
-            selectedThread = updatedThread;
+            const newComment = await response.json();
+            // Ensure we have the correct content structure
+            const commentContent = typeof newComment.content === 'string' 
+                ? newComment.content 
+                : (newComment.content[$language] || Object.values(newComment.content)[0] || '');
+            
+            // Update the selectedThread with the new comment
+            selectedThread = {
+                ...selectedThread,
+                comments: [
+                    ...(selectedThread.comments || []),
+                    {
+                        ...newComment,
+                        content: commentContent
+                    }
+                ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            };
             event.target.reset();
         }
     }
@@ -88,18 +146,25 @@
             picker.classList.toggle('hidden');
         }
     }
+
+    function handleKeyDown(event, action) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            action();
+        }
+    }
 </script>
 
 <div class="flex gap-8">
     <!-- Left Side - Threads List -->
     <div class="w-1/2">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-semibold">Threads</h2>
+            <h2 class="text-2xl font-semibold">{$t('threads')}</h2>
             <button 
-                on:click={showNewThreadForm}
+                onclick={showNewThreadForm}
                 class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
             >
-                Create New Thread
+                {$t('createThread')}
             </button>
         </div>
 
@@ -107,23 +172,26 @@
         <div id="threads-list" class="space-y-4">
             {#if !threads.length}
                 <div class="text-center text-gray-500 p-6 bg-white rounded-lg">
-                    No threads yet. Be the first to create one!
+                    {$t('noThreads')}
                 </div>
             {:else}
                 {#each threads as thread}
                     <div 
+                        role="button"
+                        tabindex="0"
                         class="bg-white p-6 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition-shadow thread-item"
                         class:border-2={selectedThreadId === thread.id}
                         class:border-blue-500={selectedThreadId === thread.id}
-                        on:click={() => loadThread(thread.id)}
+                        onclick={() => loadThread(thread.id)}
+                        onkeydown={(e) => handleKeyDown(e, () => loadThread(thread.id))}
                     >
                         <h3 class="text-xl font-semibold mb-2">{thread.title}</h3>
                         <p class="text-gray-600 mb-4">{thread.content}</p>
                         <div class="flex justify-between items-center">
                             <span class="text-sm text-gray-500">
-                                Created at {new Date(thread.created_at).toLocaleString()}
+                                {$t('postedAt')} {new Date(thread.created_at).toLocaleDateString($language)}
                             </span>
-                            <span class="text-sm text-blue-500">{thread.comments?.length || 0} comments</span>
+                            <span class="text-sm text-blue-500">{thread.comments?.length || 0} {$t('comments')}</span>
                         </div>
                     </div>
                 {/each}
@@ -135,18 +203,18 @@
     <div class="w-1/2">
         {#if !selectedThread}
             <div class="text-center text-gray-500 p-6 bg-white rounded-lg">
-                Select a thread to view details and comments
+                {$t('selectThread')}
             </div>
         {:else}
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-2xl font-semibold mb-4">{selectedThread.title}</h2>
                 <p class="text-gray-600 mb-6">{selectedThread.content}</p>
                 <div class="border-t pt-6">
-                    <h3 class="text-xl font-semibold mb-4">Comments</h3>
+                    <h3 class="text-xl font-semibold mb-4">{$t('comments')}</h3>
                     <div class="space-y-4">
                         {#if !selectedThread.comments?.length}
                             <div class="text-gray-500 text-center">
-                                No comments yet. Be the first to comment!
+                                {$t('noComments')}
                             </div>
                         {:else}
                             {#each selectedThread.comments as comment}
@@ -154,42 +222,44 @@
                                     <p class="text-gray-700 mb-2">{comment.content}</p>
                                     {#if comment.image_path}
                                         <div class="mb-3">
+                                            <!-- svelte-ignore a11y_img_redundant_alt -->
                                             <img src={comment.image_path} alt="Comment image" class="max-w-full h-auto rounded-lg shadow-sm">
                                         </div>
                                     {/if}
                                     <span class="text-sm text-gray-500">
-                                        Created at {new Date(comment.created_at).toLocaleString()}
+                                        {$t('postedAt')} {new Date(comment.created_at).toLocaleDateString($language)}
                                     </span>
                                 </div>
                             {/each}
                         {/if}
                     </div>
                     <div class="mt-6">
-                        <form on:submit={(e) => addComment(e, selectedThread.id)}>
+                        <form onsubmit={(e) => addComment(e, selectedThread.id)}>
                             <div class="relative mb-4">
                                 <textarea 
                                     name="content"
-                                    placeholder="Write a comment..." 
+                                    placeholder={$t('writeComment')}
                                     class="w-full p-2 border rounded h-24"
                                     required
                                 ></textarea>
                                 <button 
                                     type="button"
-                                    on:click={() => toggleEmojiPicker('comment-emoji-picker')}
+                                    onclick={() => toggleEmojiPicker('comment-emoji-picker')}
                                     class="absolute right-2 bottom-2 text-gray-500 hover:text-gray-700"
+                                    aria-label="Open emoji picker"
                                 >
                                     😊
                                 </button>
                                 <div id="comment-emoji-picker" class="hidden absolute bottom-full right-0 bg-white border rounded-lg shadow-lg p-2 mb-2">
                                     <div class="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
-                                        <button type="button" on:click={() => insertEmoji('😊', 'comment')} class="emoji-btn">😊</button>
-                                        <button type="button" on:click={() => insertEmoji('👍', 'comment')} class="emoji-btn">👍</button>
-                                        <button type="button" on:click={() => insertEmoji('❤️', 'comment')} class="emoji-btn">❤️</button>
-                                        <button type="button" on:click={() => insertEmoji('😂', 'comment')} class="emoji-btn">😂</button>
-                                        <button type="button" on:click={() => insertEmoji('🎉', 'comment')} class="emoji-btn">🎉</button>
-                                        <button type="button" on:click={() => insertEmoji('🤔', 'comment')} class="emoji-btn">🤔</button>
-                                        <button type="button" on:click={() => insertEmoji('👏', 'comment')} class="emoji-btn">👏</button>
-                                        <button type="button" on:click={() => insertEmoji('🙌', 'comment')} class="emoji-btn">🙌</button>
+                                        <button type="button" onclick={() => insertEmoji('😊', 'comment')} class="emoji-btn" aria-label="Insert smile emoji">😊</button>
+                                        <button type="button" onclick={() => insertEmoji('👍', 'comment')} class="emoji-btn" aria-label="Insert thumbs up emoji">👍</button>
+                                        <button type="button" onclick={() => insertEmoji('❤️', 'comment')} class="emoji-btn" aria-label="Insert heart emoji">❤️</button>
+                                        <button type="button" onclick={() => insertEmoji('😂', 'comment')} class="emoji-btn" aria-label="Insert laugh emoji">😂</button>
+                                        <button type="button" onclick={() => insertEmoji('🎉', 'comment')} class="emoji-btn" aria-label="Insert party emoji">🎉</button>
+                                        <button type="button" onclick={() => insertEmoji('🤔', 'comment')} class="emoji-btn" aria-label="Insert thinking emoji">🤔</button>
+                                        <button type="button" onclick={() => insertEmoji('👏', 'comment')} class="emoji-btn" aria-label="Insert clap emoji">👏</button>
+                                        <button type="button" onclick={() => insertEmoji('🙌', 'comment')} class="emoji-btn" aria-label="Insert raised hands emoji">🙌</button>
                                     </div>
                                 </div>
                             </div>
@@ -226,55 +296,57 @@
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 z-50">
             <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">Create New Thread</h2>
+                    <h2 class="text-2xl font-semibold">{$t('createThread')}</h2>
                     <button 
-                        on:click={hideNewThreadForm}
+                        onclick={hideNewThreadForm}
                         class="text-gray-500 hover:text-gray-700"
+                        aria-label="Close modal"
                     >
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
                     </button>
                 </div>
-                <form on:submit={createThread}>
+                <form onsubmit={createThread}>
                     <input 
                         type="text" 
                         name="title"
-                        placeholder="Thread Title" 
+                        placeholder={$t('createThread')}
                         class="w-full mb-4 p-2 border rounded"
                         required
                     >
                     <div class="relative mb-4">
                         <textarea 
                             name="content"
-                            placeholder="Thread Content" 
+                            placeholder={$t('writeComment')}
                             class="w-full p-2 border rounded h-32"
                             required
                         ></textarea>
                         <button 
                             type="button"
-                            on:click={() => toggleEmojiPicker('thread-emoji-picker')}
+                            onclick={() => toggleEmojiPicker('thread-emoji-picker')}
                             class="absolute right-2 bottom-2 text-gray-500 hover:text-gray-700"
+                            aria-label="Open emoji picker"
                         >
                             😊
                         </button>
                         <div id="thread-emoji-picker" class="hidden absolute bottom-full right-0 bg-white border rounded-lg shadow-lg p-2 mb-2">
                             <div class="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
-                                <button type="button" on:click={() => insertEmoji('😊', 'thread')} class="emoji-btn">😊</button>
-                                <button type="button" on:click={() => insertEmoji('👍', 'thread')} class="emoji-btn">👍</button>
-                                <button type="button" on:click={() => insertEmoji('❤️', 'thread')} class="emoji-btn">❤️</button>
-                                <button type="button" on:click={() => insertEmoji('😂', 'thread')} class="emoji-btn">😂</button>
-                                <button type="button" on:click={() => insertEmoji('🎉', 'thread')} class="emoji-btn">🎉</button>
-                                <button type="button" on:click={() => insertEmoji('🤔', 'thread')} class="emoji-btn">🤔</button>
-                                <button type="button" on:click={() => insertEmoji('👏', 'thread')} class="emoji-btn">👏</button>
-                                <button type="button" on:click={() => insertEmoji('🙌', 'thread')} class="emoji-btn">🙌</button>
+                                <button type="button" onclick={() => insertEmoji('😊', 'thread')} class="emoji-btn" aria-label="Insert smile emoji">😊</button>
+                                <button type="button" onclick={() => insertEmoji('👍', 'thread')} class="emoji-btn" aria-label="Insert thumbs up emoji">👍</button>
+                                <button type="button" onclick={() => insertEmoji('❤️', 'thread')} class="emoji-btn" aria-label="Insert heart emoji">❤️</button>
+                                <button type="button" onclick={() => insertEmoji('😂', 'thread')} class="emoji-btn" aria-label="Insert laugh emoji">😂</button>
+                                <button type="button" onclick={() => insertEmoji('🎉', 'thread')} class="emoji-btn" aria-label="Insert party emoji">🎉</button>
+                                <button type="button" onclick={() => insertEmoji('🤔', 'thread')} class="emoji-btn" aria-label="Insert thinking emoji">🤔</button>
+                                <button type="button" onclick={() => insertEmoji('👏', 'thread')} class="emoji-btn" aria-label="Insert clap emoji">👏</button>
+                                <button type="button" onclick={() => insertEmoji('🙌', 'thread')} class="emoji-btn" aria-label="Insert raised hands emoji">🙌</button>
                             </div>
                         </div>
                     </div>
                     <div class="flex justify-end gap-2">
                         <button 
                             type="button"
-                            on:click={hideNewThreadForm}
+                            onclick={hideNewThreadForm}
                             class="px-4 py-2 rounded text-gray-600 hover:bg-gray-100"
                         >
                             Cancel
