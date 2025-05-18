@@ -10,7 +10,7 @@ A modern, multilingual discussion platform built with Go and SvelteKit.
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-latest-FF3E00.svg?style=flat&logo=svelte)](https://kit.svelte.dev)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Demo](https://demo.pkoforum.com) · [Documentation](docs/README.md) · [Report Bug](issues/new) · [Request Feature](issues/new)
+[Report Bug](issues/new) · [Request Feature](issues/new)
 
 </div>
 
@@ -22,6 +22,10 @@ A modern, multilingual discussion platform built with Go and SvelteKit.
 - 🎨 **Modern UI**: Beautiful, responsive interface built with TailwindCSS
 - 📱 **Mobile-First**: Fully responsive design that works on all devices
 - 🔒 **Secure**: Built with security best practices
+
+## 🎥 Demo
+
+![Demo Animation](static/demo.gif)
 
 ## 🚀 Quick Start
 

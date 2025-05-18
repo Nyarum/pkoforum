@@ -2,3 +2,5 @@ node_modules/*
 .svelte-kit/*
 data/*
 .DS_Store
+static/uploads/*
+data/*
