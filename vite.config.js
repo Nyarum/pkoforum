@@ -21,7 +21,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      $static: path.resolve('./static')
+      $static: path.resolve('./static'),
+      '@skeletonlabs/skeleton-svelte': path.resolve('./node_modules/@skeletonlabs/skeleton-svelte'),
+      '$lib': path.resolve('./src/lib')
     }
+  },
+  optimizeDeps: {
+    include: ['@skeletonlabs/skeleton-svelte']
   }
 }); 

@@ -1,49 +1,59 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"pkoforum/db"
 	sqlcdb "pkoforum/db/sqlc"
 	"pkoforum/internal/api"
+	"pkoforum/internal/config"
 
 	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/sashabaranov/go-openai"
 )
 
-var queries *sqlcdb.Queries
-
-func init() {
-	// Initialize database
-	db.InitDB()
-
-	// Initialize queries
-	queries = sqlcdb.New(db.DB)
-
-	// Initialize OpenAI client
-	config := openai.DefaultConfig("sk-7fecdc2078a344b0ae899c243fe8b5fb")
-	config.BaseURL = "https://api.deepseek.com"
-	openaiClient := openai.NewClientWithConfig(config)
-
-	// Initialize API handlers
-	api.Init(queries)
-	api.InitOpenAI(openaiClient)
-
-	// Create uploads directory with proper permissions
-	uploadsDir := "static/uploads"
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func main() {
+	// Configure zerolog
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.RFC3339,
+	})
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load configuration")
+	}
+
+	// Initialize database
+	if err := db.InitDB(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize database")
+	}
 	defer db.CloseDB()
 
-	r := mux.NewRouter()
+	// Initialize queries
+	queries := sqlcdb.New(db.DB)
+
+	// Initialize OpenAI client
+	config := openai.DefaultConfig(cfg.DeepseekAPIKey)
+	config.BaseURL = cfg.DeepseekURL
+	openaiClient := openai.NewClientWithConfig(config)
+
+	// Create uploads directory with proper permissions
+	if err := os.MkdirAll(cfg.UploadsPath, 0755); err != nil {
+		log.Fatal().Err(err).Str("path", cfg.UploadsPath).Msg("Failed to create uploads directory")
+	}
+
+	// Initialize the application
+	app := api.NewApp(db.DB, queries, openaiClient, cfg.UploadsPath)
+	router := app.Router()
 
 	// CORS middleware
 	corsMiddleware := handlers.CORS(
@@ -52,13 +62,12 @@ func main() {
 		handlers.AllowedHeaders([]string{"Content-Type", "Accept", "Accept-Language", "Accept-Encoding", "X-CSRF-Token", "Authorization"}),
 		handlers.AllowCredentials(),
 	)
-	r.Use(corsMiddleware)
-	r.Use(api.LanguageMiddleware)
+	router.Use(corsMiddleware)
+	router.Use(api.LanguageMiddleware)
 
 	// Serve static files with proper headers
 	fs := http.FileServer(http.Dir("static"))
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set proper headers for images
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if filepath.Ext(r.URL.Path) == ".jpg" || filepath.Ext(r.URL.Path) == ".jpeg" || filepath.Ext(r.URL.Path) == ".png" {
 			w.Header().Set("Content-Type", "image/"+filepath.Ext(r.URL.Path)[1:])
 		}
@@ -67,12 +76,8 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})))
 
-	// API Routes
-	r.HandleFunc("/api/threads", api.GetThreads).Methods("GET")
-	r.HandleFunc("/api/threads", api.CreateThread).Methods("POST")
-	r.HandleFunc("/api/threads/{id}", api.GetThread).Methods("GET")
-	r.HandleFunc("/api/threads/{id}/comments", api.CreateComment).Methods("POST")
-
-	log.Println("Server starting on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	// Start server
+	addr := fmt.Sprintf(":%s", cfg.Port)
+	log.Info().Str("addr", addr).Msg("Starting server")
+	log.Fatal().Err(http.ListenAndServe(addr, router)).Msg("Server stopped")
 }

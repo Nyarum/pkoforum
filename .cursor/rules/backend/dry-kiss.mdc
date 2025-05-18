@@ -1,0 +1,80 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When writing backend code, follow these DRY (Don't Repeat Yourself) and KISS (Keep It Simple, Stupid) principles:
+
+DRY Principles:
+1. Extract common functionality into reusable packages
+2. Use middleware for cross-cutting concerns
+3. Create utility functions for repeated operations
+4. Use generics for type-safe reusable code
+5. Implement shared interfaces for common behavior
+
+Example:
+```go
+// Good: Reusable error handling
+func WithTx(db *sql.DB, fn func(*sql.Tx) error) error {
+    tx, err := db.Begin()
+    if err != nil {
+        return fmt.Errorf("begin transaction: %w", err)
+    }
+    
+    defer func() {
+        if p := recover(); p != nil {
+            tx.Rollback()
+            panic(p)
+        }
+    }()
+    
+    if err := fn(tx); err != nil {
+        tx.Rollback()
+        return err
+    }
+    
+    return tx.Commit()
+}
+
+// Usage
+err := WithTx(db, func(tx *sql.Tx) error {
+    // Use transaction
+    return nil
+})
+```
+
+KISS Principles:
+1. Keep functions small and focused
+2. Avoid premature optimization
+3. Use standard library solutions when possible
+4. Minimize dependencies
+5. Write self-documenting code
+
+Example:
+```go
+// Good: Simple and clear
+func IsAdult(age int) bool {
+    return age >= 18
+}
+
+// Bad: Overcomplicated
+func IsAdult(age int) bool {
+    switch {
+    case age < 0:
+        return false
+    case age == 18:
+        return true
+    case age > 18:
+        return true
+    default:
+        return false
+    }
+}
+```
+
+Best Practices:
+1. Use meaningful variable and function names
+2. Keep cyclomatic complexity low
+3. Write testable code
+4. Use standard error handling patterns
+5. Document public APIs

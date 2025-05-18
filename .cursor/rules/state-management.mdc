@@ -1,0 +1,35 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When managing state in Svelte components:
+
+1. Use $state for reactive variables that need component-wide updates
+2. Initialize arrays and objects with proper typing
+3. Use null as initial value for optional objects
+4. Always provide type definitions for state variables
+5. Use $effect for side effects that depend on state changes
+
+Example pattern:
+```ts
+// State declarations
+let threads = $state<Thread[]>([]);
+let selectedThread = $state<Thread | null>(null);
+let isLoading = $state(false);
+
+// Effects for state changes
+$effect(() => {
+    if (selectedThread) {
+        loadData();
+    }
+});
+
+// Type-safe state updates
+function updateState() {
+    threads = threads.map(thread => ({
+        ...thread,
+        comments: thread.comments || []
+    }));
+}
+```

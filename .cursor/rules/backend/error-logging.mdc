@@ -1,0 +1,93 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+When handling errors and logging in backend services:
+
+1. Error Handling Principles
+- Use custom error types for domain-specific errors
+- Wrap errors with context using fmt.Errorf and %w
+- Return errors rather than handling them internally
+- Don't ignore errors
+- Use sentinel errors for expected error conditions
+
+Example:
+```go
+// Custom error types
+type NotFoundError struct {
+    Resource string
+    ID       string
+}
+
+func (e *NotFoundError) Error() string {
+    return fmt.Sprintf("%s with ID %s not found", e.Resource, e.ID)
+}
+
+// Error wrapping
+func (s *service) GetUser(id string) (*User, error) {
+    user, err := s.repo.FindByID(id)
+    if err != nil {
+        return nil, fmt.Errorf("getting user %s: %w", id, err)
+    }
+    return user, nil
+}
+```
+
+2. Error Response Patterns
+- Use appropriate HTTP status codes
+- Provide clear error messages
+- Include error codes for client handling
+- Don't expose internal errors to clients
+- Log detailed errors internally
+
+Example:
+```go
+func handleError(w http.ResponseWriter, err error) {
+    var nfe *NotFoundError
+    switch {
+    case errors.As(err, &nfe):
+        respondError(w, http.StatusNotFound, "not_found", nfe.Error())
+    default:
+        log.Printf("Internal error: %+v", err)
+        respondError(w, http.StatusInternalServerError, "internal_error", "An internal error occurred")
+    }
+}
+```
+
+3. Logging Best Practices
+- Use structured logging
+- Include relevant context in logs
+- Use appropriate log levels
+- Don't log sensitive information
+- Include request IDs for tracing
+
+Example:
+```go
+// Structured logging
+logger := log.With(
+    "request_id", requestID,
+    "user_id", userID,
+    "action", "user_creation",
+)
+
+logger.Info("Creating new user",
+    "email", user.Email,
+    "role", user.Role,
+)
+
+// Error logging
+if err != nil {
+    logger.Error("Failed to create user",
+        "error", err,
+        "validation_errors", validationErrors,
+    )
+}
+```
+
+4. Monitoring and Alerting
+- Log critical errors with high severity
+- Set up alerts for error thresholds
+- Monitor error rates and patterns
+- Track error resolution time
+- Use distributed tracing for complex flows

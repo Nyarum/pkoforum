@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When working with polling or intervals in components:
+
+1. Always store interval IDs in $state or let variables
+2. Always clear intervals in onDestroy
+3. Use reasonable polling intervals (minimum 2000ms) to avoid excessive API calls
+4. Clear existing intervals before setting new ones
+5. Use null checks before clearing intervals
+
+Example pattern:
+```ts
+let pollInterval = $state<ReturnType<typeof setInterval> | null>(null);
+
+// Clear existing interval
+if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+}
+
+// Set new interval with reasonable timing
+pollInterval = setInterval(pollFunction, 2000);
+
+// Cleanup in onDestroy
+onDestroy(() => {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+});
+```

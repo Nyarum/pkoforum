@@ -1,11 +1,16 @@
 -- name: CreateThread :one
-INSERT INTO threads (id, title, content, created_at)
-VALUES (?, ?, ?, ?) RETURNING *;
+INSERT INTO threads (id, title, content, category, created_at)
+VALUES (?, ?, ?, ?, ?) RETURNING *;
 
 -- name: GetThread :one
 SELECT * FROM threads WHERE id = ?;
 
 -- name: ListThreads :many
+SELECT * FROM threads 
+WHERE category = sqlc.arg(category)
+ORDER BY created_at DESC;
+
+-- name: ListAllThreads :many
 SELECT * FROM threads ORDER BY created_at DESC;
 
 -- name: CreateComment :one

@@ -15,7 +15,8 @@ type Querier interface {
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
 	GetThread(ctx context.Context, id string) (Thread, error)
 	GetThreadComments(ctx context.Context, threadID string) ([]GetThreadCommentsRow, error)
-	ListThreads(ctx context.Context) ([]Thread, error)
+	ListAllThreads(ctx context.Context) ([]Thread, error)
+	ListThreads(ctx context.Context, category string) ([]Thread, error)
 }
 
 var _ Querier = (*Queries)(nil)

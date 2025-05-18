@@ -1,9 +1,14 @@
+DROP TABLE IF EXISTS comment_images;
+DROP TABLE IF EXISTS comment_translations;
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS threads;
 
 -- Create threads table
 CREATE TABLE IF NOT EXISTS threads (
     id VARCHAR(255) PRIMARY KEY,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'general',
     created_at TIMESTAMP NOT NULL
 );
 

@@ -1,0 +1,40 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When handling forms in components:
+
+1. Always prevent default form submission
+2. Use typed FormData handling
+3. Clear form after successful submission
+4. Disable submit button during submission
+5. Provide user feedback for form state
+6. Handle file uploads properly
+
+Example pattern:
+```ts
+async function handleSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    const form = event.target as HTMLFormElement;
+    const formData = new FormData(form);
+    
+    try {
+        isSubmitting = true;
+        const response = await fetch('/api/submit', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) throw new Error('Submission failed');
+        
+        form.reset();
+        showSuccess('Form submitted successfully');
+    } catch (error) {
+        console.error('Form submission error:', error);
+        showError('Failed to submit form');
+    } finally {
+        isSubmitting = false;
+    }
+}
+```

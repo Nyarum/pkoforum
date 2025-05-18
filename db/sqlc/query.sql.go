@@ -91,14 +91,15 @@ func (q *Queries) CreateCommentTranslation(ctx context.Context, arg CreateCommen
 }
 
 const createThread = `-- name: CreateThread :one
-INSERT INTO threads (id, title, content, created_at)
-VALUES (?, ?, ?, ?) RETURNING id, title, content, created_at
+INSERT INTO threads (id, title, content, category, created_at)
+VALUES (?, ?, ?, ?, ?) RETURNING id, title, content, category, created_at
 `
 
 type CreateThreadParams struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
 	Content   string    `json:"content"`
+	Category  string    `json:"category"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -107,6 +108,7 @@ func (q *Queries) CreateThread(ctx context.Context, arg CreateThreadParams) (Thr
 		arg.ID,
 		arg.Title,
 		arg.Content,
+		arg.Category,
 		arg.CreatedAt,
 	)
 	var i Thread
@@ -114,13 +116,14 @@ func (q *Queries) CreateThread(ctx context.Context, arg CreateThreadParams) (Thr
 		&i.ID,
 		&i.Title,
 		&i.Content,
+		&i.Category,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getThread = `-- name: GetThread :one
-SELECT id, title, content, created_at FROM threads WHERE id = ?
+SELECT id, title, content, category, created_at FROM threads WHERE id = ?
 `
 
 func (q *Queries) GetThread(ctx context.Context, id string) (Thread, error) {
@@ -130,6 +133,7 @@ func (q *Queries) GetThread(ctx context.Context, id string) (Thread, error) {
 		&i.ID,
 		&i.Title,
 		&i.Content,
+		&i.Category,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -195,12 +199,12 @@ func (q *Queries) GetThreadComments(ctx context.Context, threadID string) ([]Get
 	return items, nil
 }
 
-const listThreads = `-- name: ListThreads :many
-SELECT id, title, content, created_at FROM threads ORDER BY created_at DESC
+const listAllThreads = `-- name: ListAllThreads :many
+SELECT id, title, content, category, created_at FROM threads ORDER BY created_at DESC
 `
 
-func (q *Queries) ListThreads(ctx context.Context) ([]Thread, error) {
-	rows, err := q.db.QueryContext(ctx, listThreads)
+func (q *Queries) ListAllThreads(ctx context.Context) ([]Thread, error) {
+	rows, err := q.db.QueryContext(ctx, listAllThreads)
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +216,42 @@ func (q *Queries) ListThreads(ctx context.Context) ([]Thread, error) {
 			&i.ID,
 			&i.Title,
 			&i.Content,
+			&i.Category,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listThreads = `-- name: ListThreads :many
+SELECT id, title, content, category, created_at FROM threads 
+WHERE category = ?1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListThreads(ctx context.Context, category string) ([]Thread, error) {
+	rows, err := q.db.QueryContext(ctx, listThreads, category)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Thread{}
+	for rows.Next() {
+		var i Thread
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Content,
+			&i.Category,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

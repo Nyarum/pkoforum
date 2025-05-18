@@ -1,0 +1,31 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When handling errors in async operations:
+
+1. Always use try-catch blocks for async operations
+2. Set appropriate loading states before and after operations
+3. Provide fallback values when operations fail
+4. Log errors with meaningful context
+5. Reset state to a known good value on error
+6. Use type-safe error handling
+
+Example pattern:
+```ts
+async function loadData() {
+    try {
+        isLoading = true;
+        const response = await fetch('/api/data');
+        if (!response.ok) throw new Error('Failed to load data');
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error loading data:', error);
+        return []; // Safe fallback
+    } finally {
+        isLoading = false;
+    }
+}
+```

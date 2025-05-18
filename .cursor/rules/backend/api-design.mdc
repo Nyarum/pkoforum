@@ -1,0 +1,76 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When designing APIs, follow these principles:
+
+1. RESTful Resource Naming
+- Use plural nouns for collections (/users, /posts)
+- Use singular nouns for specific resources (/users/{id})
+- Use verbs for actions that don't fit CRUD (/users/{id}/activate)
+- Keep URLs lowercase and use hyphens for separators
+
+2. HTTP Methods
+- GET: Retrieve resources (idempotent)
+- POST: Create new resources
+- PUT: Update entire resources (idempotent)
+- PATCH: Partial updates
+- DELETE: Remove resources (idempotent)
+
+Example:
+```go
+// Good: RESTful endpoint structure
+router.Group("/api/v1", func(r chi.Router) {
+    r.Get("/users", handlers.ListUsers)
+    r.Post("/users", handlers.CreateUser)
+    r.Get("/users/{id}", handlers.GetUser)
+    r.Put("/users/{id}", handlers.UpdateUser)
+    r.Delete("/users/{id}", handlers.DeleteUser)
+    r.Post("/users/{id}/activate", handlers.ActivateUser)
+})
+```
+
+3. Response Structure
+- Use consistent response formats
+- Include proper HTTP status codes
+- Provide meaningful error messages
+- Include pagination metadata
+
+Example:
+```go
+type Response struct {
+    Data       interface{} `json:"data"`
+    Pagination *struct {
+        Total      int `json:"total"`
+        Page       int `json:"page"`
+        PerPage    int `json:"per_page"`
+        TotalPages int `json:"total_pages"`
+    } `json:"pagination,omitempty"`
+    Error *struct {
+        Code    string `json:"code"`
+        Message string `json:"message"`
+        Details any    `json:"details,omitempty"`
+    } `json:"error,omitempty"`
+}
+```
+
+4. Security Practices
+- Use HTTPS everywhere
+- Implement proper authentication
+- Validate all inputs
+- Rate limit endpoints
+- Use secure headers
+
+5. Versioning
+- Include version in URL path (/api/v1/...)
+- Maintain backward compatibility
+- Document breaking changes
+- Use semantic versioning
+
+6. Documentation
+- Document all endpoints
+- Include request/response examples
+- Document error responses
+- Keep documentation up-to-date
+- Use OpenAPI/Swagger specifications

@@ -1,0 +1,62 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+When developing backend components, follow these SOLID principles:
+
+1. Single Responsibility Principle (SRP)
+- Each package/type should have one primary responsibility
+- Split large interfaces into smaller, focused ones
+- Keep functions focused on a single task
+
+Example:
+```go
+// Good: Single responsibility
+type UserRepository interface {
+    FindByID(id string) (*User, error)
+    Save(user *User) error
+}
+
+// Bad: Mixed responsibilities
+type UserService interface {
+    FindByID(id string) (*User, error)
+    Save(user *User) error
+    SendWelcomeEmail(user *User) error // Should be in EmailService
+}
+```
+
+2. Open/Closed Principle (OCP)
+- Design types to be extended without modification
+- Use interfaces for extensibility
+- Implement new functionality through new types rather than changing existing ones
+
+3. Liskov Substitution Principle (LSP)
+- Subtypes must be substitutable for their base types
+- Maintain interface contracts
+- Don't violate parent class invariants
+
+4. Interface Segregation Principle (ISP)
+- Keep interfaces small and focused
+- Don't force clients to implement unnecessary methods
+- Split large interfaces into smaller ones
+
+5. Dependency Inversion Principle (DIP)
+- Depend on abstractions, not concrete implementations
+- Use dependency injection
+- Define clear interface boundaries
+
+Example:
+```go
+// Good: Depends on abstraction
+type Service struct {
+    repo Repository
+    logger Logger
+}
+
+// Bad: Depends on concrete types
+type Service struct {
+    repo *PostgresRepository
+    logger *ZapLogger
+}
+```
