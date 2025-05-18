@@ -1,5 +1,3 @@
-# PKO Forum
-
 <div align="center">
 
 ![PKO Forum Logo](static/logo.png)
